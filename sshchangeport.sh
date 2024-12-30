@@ -85,15 +85,17 @@ else
   echo "SSH 服务已存在，跳过安装。"
 fi
 
-# 重启SSH服务
-# 自动检测系统中可能的服务名
-service_name=$(systemctl list-units --type=service | grep -E 'ssh|sshd' | awk '{print $1}' | head -n 1)
-
-if [ -n "$service_name" ]; then
+# 检查并重启SSH服务
+# 使用 systemctl 或 /etc/init.d 重启 SSH 服务
+service_name="sshd"
+if systemctl is-active --quiet "$service_name"; then
   systemctl restart "$service_name"
   echo "SSH 服务已成功重启！"
+elif [ -f "/etc/init.d/sshd" ]; then
+  /etc/init.d/sshd restart
+  echo "通过 /etc/init.d 重启了 SSH 服务！"
 else
-  echo "错误：未能找到有效的 SSH 服务，无法重启 SSH 服务！"
+  echo "错误：无法重启 SSH 服务，请检查配置是否正确！"
   exit 1
 fi
 
