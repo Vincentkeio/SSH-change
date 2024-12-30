@@ -73,6 +73,19 @@ else
   echo "警告：未检测到受支持的防火墙工具，请手动开放新端口 $new_port 并关闭旧端口 $current_port"
 fi
 
+# 检查防火墙是否启用
+if command -v ufw >/dev/null 2>&1; then
+  if ! sudo ufw status | grep -q "Status: active"; then
+    echo "错误：ufw防火墙未启用，无法加载防火墙规则。"
+    exit 1
+  fi
+elif command -v firewall-cmd >/dev/null 2>&1; then
+  if ! sudo systemctl is-active --quiet firewalld; then
+    echo "错误：firewalld防火墙未启用，无法加载防火墙规则。"
+    exit 1
+  fi
+fi
+
 # 启动并重启SSH服务
 restart_ssh() {
   if systemctl is-active --quiet sshd; then
@@ -85,9 +98,9 @@ restart_ssh() {
   fi
 }
 
-# 尝试重启 SSH 服务，最多重试 3 次
+# 尝试重启 SSH 服务，最多重试 5 次
 attempt=1
-max_attempts=3
+max_attempts=5
 while ! systemctl is-active --quiet sshd && [ $attempt -le $max_attempts ]; do
   echo "尝试重启 SSH 服务，尝试次数: $attempt/$max_attempts"
   restart_ssh
