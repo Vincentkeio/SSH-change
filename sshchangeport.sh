@@ -170,10 +170,29 @@ fi
 echo "重启后的 SSH 配置："
 ss -tuln | grep $new_port  # 检查新的端口是否开放
 
-# 如果端口未开放，输出错误信息并退出
+# 如果端口未开放，立即修复
 if ! ss -tuln | grep -q $new_port; then
-  echo "错误：新端口 $new_port 未成功开放，请检查 SSH 配置和防火墙设置。"
-  exit 1
+  echo "错误：新端口 $new_port 未成功开放，执行修复步骤..."
+
+  # 执行修复步骤：重新加载配置并重启SSH服务
+  echo "执行 systemctl daemon-reload..."
+  sudo systemctl daemon-reload
+
+  echo "执行 /etc/init.d/ssh restart..."
+  sudo /etc/init.d/ssh restart
+
+  echo "执行 systemctl restart ssh..."
+  sudo systemctl restart ssh
+
+  # 再次检查新端口是否开放
+  echo "检查新端口是否生效..."
+  ss -tuln | grep $new_port
+
+  # 如果修复后端口仍未开放，输出错误信息并退出
+  if ! ss -tuln | grep -q $new_port; then
+    echo "错误：修复后新端口 $new_port 仍未成功开放，请检查配置。"
+    exit 1
+  fi
 fi
 
 echo "操作完成！"
