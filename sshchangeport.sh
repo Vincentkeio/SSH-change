@@ -133,6 +133,7 @@ restart_ssh() {
   if [[ "$os_type" == "ubuntu" ]]; then
     # Ubuntu 系统
     if systemctl is-active --quiet ssh; then
+      sudo systemctl daemon-reload  # 重新加载系统配置
       sudo systemctl restart ssh
       echo "SSH 服务已成功重启！"
     else
@@ -143,6 +144,7 @@ restart_ssh() {
   elif [[ "$os_type" == "debian" ]]; then
     # Debian 系统
     if systemctl is-active --quiet sshd; then
+      sudo systemctl daemon-reload  # 重新加载系统配置
       sudo systemctl restart sshd
       echo "SSH 服务已成功重启！"
     else
@@ -153,6 +155,7 @@ restart_ssh() {
   elif [[ "$os_type" == "centos" || "$os_type" == "rhel" ]]; then
     # CentOS 或 RHEL 系统
     if systemctl is-active --quiet sshd; then
+      sudo systemctl daemon-reload  # 重新加载系统配置
       sudo systemctl restart sshd
       echo "SSH 服务已成功重启！"
     else
@@ -188,3 +191,6 @@ ss -tuln | grep $new_port  # 检查新的端口是否开放
 if ! ss -tuln | grep -q $new_port; then
   echo "错误：新端口 $new_port 未成功开放，请检查 SSH 配置和防火墙设置。"
   exit 1
+fi
+
+echo "操作完成！"
