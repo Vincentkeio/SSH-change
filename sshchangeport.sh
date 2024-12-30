@@ -46,47 +46,66 @@ fi
 grep "^Port " "$ssh_config_file"
 
 # 开放新端口并关闭旧端口
-if command -v ufw >/dev/null 2>&1; then
-  # 检查ufw防火墙状态
-  if ! sudo ufw status | grep -q "Status: active"; then
-    echo "ufw防火墙未启用，正在启用ufw防火墙..."
-    sudo ufw enable
+open_ports() {
+  if command -v ufw >/dev/null 2>&1; then
+    # 确保ufw防火墙启用
+    if ! sudo ufw status | grep -q "Status: active"; then
+      echo "ufw防火墙未启用，正在启用ufw防火墙..."
+      sudo ufw enable
+    fi
+    sudo ufw allow $new_port/tcp
+    echo "已开放新端口 $new_port"
+    sudo ufw delete allow $current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
+    sudo ufw reload  # 确保防火墙规则生效
+    echo "已关闭旧端口 $current_port"
+  elif command -v firewall-cmd >/dev/null 2>&1; then
+    # 检查firewalld防火墙状态
+    if ! sudo systemctl is-active --quiet firewalld; then
+      echo "firewalld防火墙未启用，正在启动firewalld..."
+      sudo systemctl start firewalld
+      sudo systemctl enable firewalld
+    fi
+    sudo firewall-cmd --permanent --add-port=$new_port/tcp
+    sudo firewall-cmd --permanent --remove-port=$current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
+    sudo firewall-cmd --reload
+    echo "已开放新端口 $new_port"
+    echo "已关闭旧端口 $current_port"
+  else
+    echo "警告：未检测到受支持的防火墙工具，请手动开放新端口 $new_port 并关闭旧端口 $current_port"
   fi
-  sudo ufw allow $new_port/tcp
-  echo "已开放新端口 $new_port"
-  sudo ufw delete allow $current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
-  sudo ufw reload  # 确保防火墙规则生效
-  echo "已关闭旧端口 $current_port"
-elif command -v firewall-cmd >/dev/null 2>&1; then
-  # 检查firewalld防火墙状态
-  if ! sudo systemctl is-active --quiet firewalld; then
-    echo "firewalld防火墙未启用，正在启动firewalld..."
-    sudo systemctl start firewalld
-    sudo systemctl enable firewalld
-  fi
-  sudo firewall-cmd --permanent --add-port=$new_port/tcp
-  sudo firewall-cmd --permanent --remove-port=$current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
-  sudo firewall-cmd --reload
-  echo "已开放新端口 $new_port"
-  echo "已关闭旧端口 $current_port"
-else
-  echo "警告：未检测到受支持的防火墙工具，请手动开放新端口 $new_port 并关闭旧端口 $current_port"
-fi
+}
 
-# 检查防火墙是否启用
-if command -v ufw >/dev/null 2>&1; then
-  if ! sudo ufw status | grep -q "Status: active"; then
-    echo "错误：ufw防火墙未启用，无法加载防火墙规则。"
-    exit 1
+# 安装并启动防火墙服务
+install_firewall() {
+  if ! command -v ufw >/dev/null 2>&1; then
+    echo "未检测到ufw，正在安装ufw..."
+    apt install -y ufw || yum install -y ufw
+    ufw enable
   fi
-elif command -v firewall-cmd >/dev/null 2>&1; then
-  if ! sudo systemctl is-active --quiet firewalld; then
-    echo "错误：firewalld防火墙未启用，无法加载防火墙规则。"
-    exit 1
+  if ! command -v firewall-cmd >/dev/null 2>&1; then
+    echo "未检测到firewalld，正在安装firewalld..."
+    apt install -y firewalld || yum install -y firewalld
+    systemctl start firewalld
+    systemctl enable firewalld
   fi
-fi
+}
 
-# 启动并重启SSH服务
+# 安装并启动SSH服务
+install_ssh() {
+  if ! systemctl is-active --quiet sshd; then
+    echo "SSH 服务未安装或未启动，正在安装 SSH 服务..."
+    if command -v apt >/dev/null 2>&1; then
+      apt update && apt install -y openssh-server
+    elif command -v yum >/dev/null 2>&1; then
+      yum install -y openssh-server
+    fi
+    systemctl enable sshd
+    systemctl start sshd
+    echo "SSH 服务已安装并启动！"
+  fi
+}
+
+# 检查并重启SSH服务
 restart_ssh() {
   if systemctl is-active --quiet sshd; then
     sudo systemctl restart sshd
@@ -108,10 +127,11 @@ while ! systemctl is-active --quiet sshd && [ $attempt -le $max_attempts ]; do
   sleep 2
 done
 
-# 如果 SSH 服务仍然无法启动，报错并退出
+# 如果 SSH 服务仍然无法启动，重新安装 SSH 服务并重试
 if ! systemctl is-active --quiet sshd; then
-  echo "错误：无法启动或重启 SSH 服务，请检查系统配置或日志。"
-  exit 1
+  echo "错误：SSH 服务无法启动，正在重新安装 SSH 服务..."
+  install_ssh
+  restart_ssh
 fi
 
 # 确保重启服务后，检查新的 SSH 配置是否生效
