@@ -95,13 +95,22 @@ install_firewall() {
 
 # 检查并修复 SSH 服务
 install_ssh() {
-  if [[ "$os_type" == "ubuntu" || "$os_type" == "debian" ]]; then
-    # Ubuntu 或 Debian 系统
+  if [[ "$os_type" == "ubuntu" ]]; then
+    # Ubuntu 系统
     if ! systemctl is-active --quiet ssh; then
       echo "SSH 服务未安装或未启动，正在安装 SSH 服务..."
       apt update && apt install -y openssh-server
       systemctl enable ssh
       systemctl start ssh
+      echo "SSH 服务已安装并启动！"
+    fi
+  elif [[ "$os_type" == "debian" ]]; then
+    # Debian 系统
+    if ! systemctl is-active --quiet sshd; then
+      echo "SSH 服务未安装或未启动，正在安装 SSH 服务..."
+      apt update && apt install -y openssh-server
+      systemctl enable sshd
+      systemctl start sshd
       echo "SSH 服务已安装并启动！"
     fi
   elif [[ "$os_type" == "centos" || "$os_type" == "rhel" ]]; then
@@ -121,8 +130,8 @@ install_ssh() {
 
 # 检查并重启SSH服务
 restart_ssh() {
-  if [[ "$os_type" == "ubuntu" || "$os_type" == "debian" ]]; then
-    # Ubuntu 或 Debian 系统
+  if [[ "$os_type" == "ubuntu" ]]; then
+    # Ubuntu 系统
     if systemctl is-active --quiet ssh; then
       sudo systemctl restart ssh
       echo "SSH 服务已成功重启！"
@@ -130,6 +139,16 @@ restart_ssh() {
       echo "SSH 服务未运行，正在启动 SSH 服务..."
       sudo systemctl start ssh
       sudo systemctl enable ssh
+    fi
+  elif [[ "$os_type" == "debian" ]]; then
+    # Debian 系统
+    if systemctl is-active --quiet sshd; then
+      sudo systemctl restart sshd
+      echo "SSH 服务已成功重启！"
+    else
+      echo "SSH 服务未运行，正在启动 SSH 服务..."
+      sudo systemctl start sshd
+      sudo systemctl enable sshd
     fi
   elif [[ "$os_type" == "centos" || "$os_type" == "rhel" ]]; then
     # CentOS 或 RHEL 系统
