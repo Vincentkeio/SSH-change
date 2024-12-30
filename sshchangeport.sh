@@ -188,6 +188,3 @@ ss -tuln | grep $new_port  # 检查新的端口是否开放
 if ! ss -tuln | grep -q $new_port; then
   echo "错误：新端口 $new_port 未成功开放，请检查 SSH 配置和防火墙设置。"
   exit 1
-fi
-
-echo "操作完成！当前
