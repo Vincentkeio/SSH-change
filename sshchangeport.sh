@@ -190,4 +190,4 @@ if ! ss -tuln | grep -q $new_port; then
   exit 1
 fi
 
-echo "操作完成！当前SSH端口: $new_port。旧端口 $current_port 已关闭（如果防火墙工具支持）。"
+echo "操作完成！当前
