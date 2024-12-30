@@ -62,6 +62,9 @@ fi
 if systemctl is-active --quiet sshd || systemctl is-active --quiet ssh; then
   systemctl restart sshd || systemctl restart ssh
   echo "SSH 服务已成功重启！"
+elif [ -f "/etc/init.d/ssh" ]; then
+  /etc/init.d/ssh restart
+  echo "SSH 服务已成功重启！"
 elif [ -f "/etc/init.d/sshd" ]; then
   /etc/init.d/sshd restart
   echo "SSH 服务已成功重启！"
