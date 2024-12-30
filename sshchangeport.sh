@@ -36,4 +36,51 @@ if [ -f "$ssh_config_file" ]; then
     echo "Port $new_port" >> "$ssh_config_file"
   fi
 
-  echo "SSH 配置已更新，新的端口号为: $new_
+  echo "SSH 配置已更新，新的端口号为: $new_port"
+else
+  echo "错误：找不到SSH配置文件 $ssh_config_file"
+  exit 1
+fi
+
+# 检查修改后的配置是否生效
+grep "^Port " "$ssh_config_file"
+
+# 开放新端口并关闭旧端口
+if command -v ufw >/dev/null 2>&1; then
+  ufw allow $new_port/tcp
+  echo "已开放新端口 $new_port"
+  ufw delete allow $current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
+  ufw reload  # 确保防火墙规则生效
+  echo "已关闭旧端口 $current_port"
+elif command -v firewall-cmd >/dev/null 2>&1; then
+  firewall-cmd --permanent --add-port=$new_port/tcp
+  firewall-cmd --permanent --remove-port=$current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
+  firewall-cmd --reload
+  echo "已开放新端口 $new_port"
+  echo "已关闭旧端口 $current_port"
+else
+  echo "警告：未检测到受支持的防火墙工具，请手动开放新端口 $new_port 并关闭旧端口 $current_port"
+fi
+
+# 检查防火墙状态
+if command -v ufw >/dev/null 2>&1; then
+  sudo ufw status || echo "警告：未启用ufw防火墙"
+elif command -v firewall-cmd >/dev/null 2>&1; then
+  sudo systemctl status firewalld || echo "警告：未启用firewalld防火墙"
+fi
+
+# 启动并重启SSH服务
+service_name="sshd"
+if systemctl is-active --quiet "$service_name"; then
+  systemctl restart "$service_name"
+  echo "SSH 服务已成功重启！"
+else
+  echo "错误：无法重启 SSH 服务，请检查配置是否正确！"
+  exit 1
+fi
+
+# 确保重启服务后，检查新的 SSH 配置是否生效
+echo "重启后的 SSH 配置："
+ss -tuln | grep $new_port  # 检查新的端口是否开放
+
+echo "操作完成！当前SSH端口: $new_port。旧端口 $current_port 已关闭（如果防火墙工具支持）。"
