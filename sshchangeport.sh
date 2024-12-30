@@ -21,6 +21,8 @@ if [ -z "$current_port" ]; then
   current_port=22 # 如果未设置Port，默认值为22
 fi
 
+echo "当前SSH端口为: $current_port"
+
 # 修改sshd_config文件
 ssh_config_file="/etc/ssh/sshd_config"
 if [ -f "$ssh_config_file" ]; then
@@ -39,6 +41,9 @@ else
   echo "错误：找不到SSH配置文件 $ssh_config_file"
   exit 1
 fi
+
+# 检查修改后的配置是否生效
+grep "^Port " "$ssh_config_file"
 
 # 开放新端口并关闭旧端口
 if command -v ufw >/dev/null 2>&1; then
@@ -98,6 +103,10 @@ else
   echo "错误：无法重启 SSH 服务，请检查配置是否正确！"
   exit 1
 fi
+
+# 确保重启服务后，检查新的 SSH 配置是否生效
+echo "重启后的 SSH 配置："
+ss -tuln | grep $new_port  # 检查新的端口是否开放
 
 # 提示用户
 echo "操作完成！当前SSH端口: $new_port。旧端口 $current_port 已关闭（如果防火墙工具支持）。"
