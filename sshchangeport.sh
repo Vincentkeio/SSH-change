@@ -130,38 +130,25 @@ install_ssh() {
 
 # 检查并重启SSH服务
 restart_ssh() {
-  if [[ "$os_type" == "ubuntu" ]]; then
-    # Ubuntu 系统
-    if systemctl is-active --quiet ssh; then
-      sudo systemctl daemon-reload  # 重新加载系统配置
-      sudo systemctl restart ssh
-      echo "SSH 服务已成功重启！"
+  echo "尝试重启 SSH 服务..."
+
+  # 执行 systemctl daemon-reload 确保 systemd 能加载新的配置
+  sudo systemctl daemon-reload
+
+  # 尝试使用 systemctl 重启 SSH 服务
+  if systemctl is-active --quiet ssh; then
+    sudo systemctl restart ssh
+    echo "使用 systemctl 重启 SSH 服务成功！"
+  elif systemctl is-active --quiet sshd; then
+    sudo systemctl restart sshd
+    echo "使用 systemctl 重启 SSH 服务成功！"
+  else
+    echo "systemctl 重启失败，尝试使用 /etc/init.d/ssh 重启..."
+    if [ -f "/etc/init.d/ssh" ]; then
+      sudo /etc/init.d/ssh restart
+      echo "使用 /etc/init.d/ssh 重启 SSH 服务成功！"
     else
-      echo "SSH 服务未运行，正在启动 SSH 服务..."
-      sudo systemctl start ssh
-      sudo systemctl enable ssh
-    fi
-  elif [[ "$os_type" == "debian" ]]; then
-    # Debian 系统
-    if systemctl is-active --quiet sshd; then
-      sudo systemctl daemon-reload  # 重新加载系统配置
-      sudo systemctl restart sshd
-      echo "SSH 服务已成功重启！"
-    else
-      echo "SSH 服务未运行，正在启动 SSH 服务..."
-      sudo systemctl start sshd
-      sudo systemctl enable sshd
-    fi
-  elif [[ "$os_type" == "centos" || "$os_type" == "rhel" ]]; then
-    # CentOS 或 RHEL 系统
-    if systemctl is-active --quiet sshd; then
-      sudo systemctl daemon-reload  # 重新加载系统配置
-      sudo systemctl restart sshd
-      echo "SSH 服务已成功重启！"
-    else
-      echo "SSH 服务未运行，正在启动 SSH 服务..."
-      sudo systemctl start sshd
-      sudo systemctl enable sshd
+      echo "错误：未找到 /etc/init.d/ssh 脚本，无法重启 SSH 服务。"
     fi
   fi
 }
