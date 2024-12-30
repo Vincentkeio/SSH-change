@@ -95,8 +95,8 @@ install_firewall() {
 
 # 检查并修复 SSH 服务
 install_ssh() {
-  if [[ "$os_type" == "ubuntu" ]]; then
-    # Ubuntu 系统
+  if [[ "$os_type" == "ubuntu" || "$os_type" == "debian" ]]; then
+    # Ubuntu/Debian 系统
     if ! systemctl is-active --quiet ssh; then
       echo "SSH 服务未安装或未启动，正在安装 SSH 服务..."
       apt update && apt install -y openssh-server
@@ -104,17 +104,8 @@ install_ssh() {
       systemctl start ssh
       echo "SSH 服务已安装并启动！"
     fi
-  elif [[ "$os_type" == "debian" ]]; then
-    # Debian 系统
-    if ! systemctl is-active --quiet sshd; then
-      echo "SSH 服务未安装或未启动，正在安装 SSH 服务..."
-      apt update && apt install -y openssh-server
-      systemctl enable sshd
-      systemctl start sshd
-      echo "SSH 服务已安装并启动！"
-    fi
   elif [[ "$os_type" == "centos" || "$os_type" == "rhel" ]]; then
-    # CentOS 或 RHEL 系统
+    # CentOS/RHEL 系统
     if ! systemctl is-active --quiet sshd; then
       echo "SSH 服务未安装或未启动，正在安装 SSH 服务..."
       yum install -y openssh-server
@@ -132,21 +123,18 @@ install_ssh() {
 restart_ssh() {
   echo "尝试重启 SSH 服务..."
 
-  # 执行 systemctl daemon-reload 确保 systemd 能加载新的配置
+  # 确保 systemd 加载新的配置
   sudo systemctl daemon-reload
   echo "已执行 systemctl daemon-reload"
 
-  # 执行 /etc/init.d/ssh 重启 SSH 服务
-  if [ -f "/etc/init.d/ssh" ]; then
-    sudo /etc/init.d/ssh restart
-    echo "已执行 /etc/init.d/ssh restart"
+  # 对于 CentOS 和 RHEL，使用 sshd 服务
+  if [[ "$os_type" == "centos" || "$os_type" == "rhel" ]]; then
+    sudo systemctl restart sshd
+    echo "已执行 systemctl restart sshd"
   else
-    echo "错误：未找到 /etc/init.d/ssh 脚本，无法重启 SSH 服务。"
+    sudo systemctl restart ssh
+    echo "已执行 systemctl restart ssh"
   fi
-
-  # 执行 systemctl restart ssh 重启 SSH 服务
-  sudo systemctl restart ssh
-  echo "已执行 systemctl restart ssh"
 }
 
 # 尝试重启 SSH 服务，最多重试 5 次
