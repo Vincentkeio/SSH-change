@@ -134,18 +134,19 @@ restart_ssh() {
 
   # 执行 systemctl daemon-reload 确保 systemd 能加载新的配置
   sudo systemctl daemon-reload
+  echo "已执行 systemctl daemon-reload"
 
-  # 执行 systemctl 重启 SSH 服务
-  sudo systemctl restart ssh
-  echo "使用 systemctl 重启 SSH 服务成功！"
-
-  # 其次执行 /etc/init.d/ssh 重启 SSH 服务
+  # 执行 /etc/init.d/ssh 重启 SSH 服务
   if [ -f "/etc/init.d/ssh" ]; then
     sudo /etc/init.d/ssh restart
-    echo "使用 /etc/init.d/ssh 重启 SSH 服务成功！"
+    echo "已执行 /etc/init.d/ssh restart"
   else
     echo "错误：未找到 /etc/init.d/ssh 脚本，无法重启 SSH 服务。"
   fi
+
+  # 执行 systemctl restart ssh 重启 SSH 服务
+  sudo systemctl restart ssh
+  echo "已执行 systemctl restart ssh"
 }
 
 # 尝试重启 SSH 服务，最多重试 5 次
