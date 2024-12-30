@@ -44,12 +44,14 @@ fi
 if command -v ufw >/dev/null 2>&1; then
   ufw allow $new_port/tcp
   echo "已开放新端口 $new_port"
-  ufw delete allow $current_port/tcp
+  # 如果旧端口规则不存在，跳过删除
+  ufw status | grep -q "ALLOW.*$current_port" && ufw delete allow $current_port/tcp
   echo "已关闭旧端口 $current_port"
 elif command -v firewall-cmd >/dev/null 2>&1; then
   firewall-cmd --permanent --add-port=$new_port/tcp
   echo "已开放新端口 $new_port"
-  firewall-cmd --permanent --remove-port=$current_port/tcp
+  # 如果旧端口规则不存在，跳过删除
+  firewall-cmd --permanent --remove-port=$current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
   echo "已关闭旧端口 $current_port"
   firewall-cmd --reload
 else
@@ -57,7 +59,11 @@ else
 fi
 
 # 重启SSH服务
-if /etc/init.d/sshd restart || systemctl restart sshd; then
+if systemctl is-active --quiet sshd || systemctl is-active --quiet ssh; then
+  systemctl restart sshd || systemctl restart ssh
+  echo "SSH 服务已成功重启！"
+elif [ -f "/etc/init.d/sshd" ]; then
+  /etc/init.d/sshd restart
   echo "SSH 服务已成功重启！"
 else
   echo "错误：无法重启SSH服务，请检查配置是否正确！"
