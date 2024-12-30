@@ -58,18 +58,42 @@ else
   echo "警告：未检测到受支持的防火墙工具，请手动开放新端口 $new_port 并关闭旧端口 $current_port"
 fi
 
+# 检测并安装 SSH 服务
+if ! systemctl is-active --quiet sshd && ! systemctl is-active --quiet ssh; then
+  echo "未检测到 SSH 服务，正在安装 SSH 服务..."
+  
+  # 检查系统类型并安装 SSH 服务
+  if command -v apt >/dev/null 2>&1; then
+    # 对于基于Debian/Ubuntu的系统
+    apt update && apt install -y openssh-server
+  elif command -v yum >/dev/null 2>&1; then
+    # 对于基于RHEL/CentOS的系统
+    yum install -y openssh-server
+  elif command -v dnf >/dev/null 2>&1; then
+    # 对于基于Fedora的系统
+    dnf install -y openssh-server
+  else
+    echo "错误：无法识别此系统，无法自动安装 SSH 服务！"
+    exit 1
+  fi
+
+  # 启动 SSH 服务
+  systemctl enable sshd
+  systemctl start sshd
+  echo "SSH 服务已安装并启动！"
+else
+  echo "SSH 服务已存在，跳过安装。"
+fi
+
 # 重启SSH服务
-if systemctl is-active --quiet sshd || systemctl is-active --quiet ssh; then
-  systemctl restart sshd || systemctl restart ssh
-  echo "SSH 服务已成功重启！"
-elif [ -f "/etc/init.d/ssh" ]; then
-  /etc/init.d/ssh restart
-  echo "SSH 服务已成功重启！"
-elif [ -f "/etc/init.d/sshd" ]; then
-  /etc/init.d/sshd restart
+# 自动检测系统中可能的服务名
+service_name=$(systemctl list-units --type=service | grep -E 'ssh|sshd' | awk '{print $1}' | head -n 1)
+
+if [ -n "$service_name" ]; then
+  systemctl restart "$service_name"
   echo "SSH 服务已成功重启！"
 else
-  echo "错误：无法重启SSH服务，请检查配置是否正确！"
+  echo "错误：未能找到有效的 SSH 服务，无法重启 SSH 服务！"
   exit 1
 fi
 
