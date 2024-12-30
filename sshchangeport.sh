@@ -47,40 +47,68 @@ grep "^Port " "$ssh_config_file"
 
 # 开放新端口并关闭旧端口
 if command -v ufw >/dev/null 2>&1; then
-  ufw allow $new_port/tcp
+  # 检查ufw防火墙状态
+  if ! sudo ufw status | grep -q "Status: active"; then
+    echo "ufw防火墙未启用，正在启用ufw防火墙..."
+    sudo ufw enable
+  fi
+  sudo ufw allow $new_port/tcp
   echo "已开放新端口 $new_port"
-  ufw delete allow $current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
-  ufw reload  # 确保防火墙规则生效
+  sudo ufw delete allow $current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
+  sudo ufw reload  # 确保防火墙规则生效
   echo "已关闭旧端口 $current_port"
 elif command -v firewall-cmd >/dev/null 2>&1; then
-  firewall-cmd --permanent --add-port=$new_port/tcp
-  firewall-cmd --permanent --remove-port=$current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
-  firewall-cmd --reload
+  # 检查firewalld防火墙状态
+  if ! sudo systemctl is-active --quiet firewalld; then
+    echo "firewalld防火墙未启用，正在启动firewalld..."
+    sudo systemctl start firewalld
+    sudo systemctl enable firewalld
+  fi
+  sudo firewall-cmd --permanent --add-port=$new_port/tcp
+  sudo firewall-cmd --permanent --remove-port=$current_port/tcp || echo "警告：未找到旧端口 $current_port 的规则"
+  sudo firewall-cmd --reload
   echo "已开放新端口 $new_port"
   echo "已关闭旧端口 $current_port"
 else
   echo "警告：未检测到受支持的防火墙工具，请手动开放新端口 $new_port 并关闭旧端口 $current_port"
 fi
 
-# 检查防火墙状态
-if command -v ufw >/dev/null 2>&1; then
-  sudo ufw status || echo "警告：未启用ufw防火墙"
-elif command -v firewall-cmd >/dev/null 2>&1; then
-  sudo systemctl status firewalld || echo "警告：未启用firewalld防火墙"
-fi
-
 # 启动并重启SSH服务
-service_name="sshd"
-if systemctl is-active --quiet "$service_name"; then
-  systemctl restart "$service_name"
-  echo "SSH 服务已成功重启！"
-else
-  echo "错误：无法重启 SSH 服务，请检查配置是否正确！"
+restart_ssh() {
+  if systemctl is-active --quiet sshd; then
+    sudo systemctl restart sshd
+    echo "SSH 服务已成功重启！"
+  else
+    echo "SSH 服务未运行，正在启动 SSH 服务..."
+    sudo systemctl start sshd
+    sudo systemctl enable sshd
+  fi
+}
+
+# 尝试重启 SSH 服务，最多重试 3 次
+attempt=1
+max_attempts=3
+while ! systemctl is-active --quiet sshd && [ $attempt -le $max_attempts ]; do
+  echo "尝试重启 SSH 服务，尝试次数: $attempt/$max_attempts"
+  restart_ssh
+  attempt=$((attempt + 1))
+  sleep 2
+done
+
+# 如果 SSH 服务仍然无法启动，报错并退出
+if ! systemctl is-active --quiet sshd; then
+  echo "错误：无法启动或重启 SSH 服务，请检查系统配置或日志。"
   exit 1
 fi
 
 # 确保重启服务后，检查新的 SSH 配置是否生效
 echo "重启后的 SSH 配置："
 ss -tuln | grep $new_port  # 检查新的端口是否开放
+
+# 如果端口未开放，输出错误信息并退出
+if ! ss -tuln | grep -q $new_port; then
+  echo "错误：新端口 $new_port 未成功开放，请检查 SSH 配置和防火墙设置。"
+  exit 1
+fi
 
 echo "操作完成！当前SSH端口: $new_port。旧端口 $current_port 已关闭（如果防火墙工具支持）。"
