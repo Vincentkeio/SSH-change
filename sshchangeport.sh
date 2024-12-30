@@ -6,6 +6,9 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# 检测操作系统类型
+os_type=$(cat /etc/os-release | grep -i '^ID=' | cut -d= -f2 | tr -d '"')
+
 # 提示用户输入新的SSH端口
 read -p "请输入新的SSH端口号 (1-65535): " new_port
 
@@ -90,37 +93,61 @@ install_firewall() {
   fi
 }
 
-# 安装并启动SSH服务
+# 检查并修复 SSH 服务
 install_ssh() {
-  if ! systemctl is-active --quiet sshd; then
-    echo "SSH 服务未安装或未启动，正在安装 SSH 服务..."
-    if command -v apt >/dev/null 2>&1; then
+  if [[ "$os_type" == "ubuntu" || "$os_type" == "debian" ]]; then
+    # Ubuntu 或 Debian 系统
+    if ! systemctl is-active --quiet ssh; then
+      echo "SSH 服务未安装或未启动，正在安装 SSH 服务..."
       apt update && apt install -y openssh-server
-    elif command -v yum >/dev/null 2>&1; then
-      yum install -y openssh-server
+      systemctl enable ssh
+      systemctl start ssh
+      echo "SSH 服务已安装并启动！"
     fi
-    systemctl enable sshd
-    systemctl start sshd
-    echo "SSH 服务已安装并启动！"
+  elif [[ "$os_type" == "centos" || "$os_type" == "rhel" ]]; then
+    # CentOS 或 RHEL 系统
+    if ! systemctl is-active --quiet sshd; then
+      echo "SSH 服务未安装或未启动，正在安装 SSH 服务..."
+      yum install -y openssh-server
+      systemctl enable sshd
+      systemctl start sshd
+      echo "SSH 服务已安装并启动！"
+    fi
+  else
+    echo "无法识别的操作系统：$os_type，无法处理 SSH 服务。"
+    exit 1
   fi
 }
 
 # 检查并重启SSH服务
 restart_ssh() {
-  if systemctl is-active --quiet sshd; then
-    sudo systemctl restart sshd
-    echo "SSH 服务已成功重启！"
-  else
-    echo "SSH 服务未运行，正在启动 SSH 服务..."
-    sudo systemctl start sshd
-    sudo systemctl enable sshd
+  if [[ "$os_type" == "ubuntu" || "$os_type" == "debian" ]]; then
+    # Ubuntu 或 Debian 系统
+    if systemctl is-active --quiet ssh; then
+      sudo systemctl restart ssh
+      echo "SSH 服务已成功重启！"
+    else
+      echo "SSH 服务未运行，正在启动 SSH 服务..."
+      sudo systemctl start ssh
+      sudo systemctl enable ssh
+    fi
+  elif [[ "$os_type" == "centos" || "$os_type" == "rhel" ]]; then
+    # CentOS 或 RHEL 系统
+    if systemctl is-active --quiet sshd; then
+      sudo systemctl restart sshd
+      echo "SSH 服务已成功重启！"
+    else
+      echo "SSH 服务未运行，正在启动 SSH 服务..."
+      sudo systemctl start sshd
+      sudo systemctl enable sshd
+    fi
   fi
 }
 
 # 尝试重启 SSH 服务，最多重试 5 次
 attempt=1
 max_attempts=5
-while ! systemctl is-active --quiet sshd && [ $attempt -le $max_attempts ]; do
+while ! systemctl is-active --quiet ssh && [ $attempt -le $max_attempts ]; do
   echo "尝试重启 SSH 服务，尝试次数: $attempt/$max_attempts"
   restart_ssh
   attempt=$((attempt + 1))
@@ -128,7 +155,7 @@ while ! systemctl is-active --quiet sshd && [ $attempt -le $max_attempts ]; do
 done
 
 # 如果 SSH 服务仍然无法启动，重新安装 SSH 服务并重试
-if ! systemctl is-active --quiet sshd; then
+if ! systemctl is-active --quiet ssh && ! systemctl is-active --quiet sshd; then
   echo "错误：SSH 服务无法启动，正在重新安装 SSH 服务..."
   install_ssh
   restart_ssh
