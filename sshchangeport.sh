@@ -58,7 +58,7 @@ else
   echo "警告：未检测到受支持的防火墙工具，请手动开放新端口 $new_port 并关闭旧端口 $current_port"
 fi
 
-# 检测并安装 SSH 服务
+# 检测并安装 SSH 服务（如果不存在）
 if ! systemctl is-active --quiet sshd && ! systemctl is-active --quiet ssh; then
   echo "未检测到 SSH 服务，正在安装 SSH 服务..."
   
